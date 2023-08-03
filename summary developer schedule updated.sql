@@ -1,0 +1,4372 @@
+--alter PROCEDURE [dbo].[z_Summary_Developer_Schedule_v2]
+DECLARE
+@ProjectIDs nvarchar(max)=null
+,@ClientIDs nvarchar(max)=null
+,@ShowInternal bit
+,@EstimatedIntentSubmittalDate datetime=null
+--as
+
+select @ProjectIDs=(select projectid from projects where projectpath = '21-157')
+
+if @EstimatedIntentSubmittalDate='01/01/1900'
+begin
+	select @EstimatedIntentSubmittalDate=null
+end
+DECLARE
+--Intake
+ @Intake_Gas_NB					int
+,@Intake_Gas_WRO				int
+,@Intake_Electric_NB			int
+,@Intake_Electric_R20			int
+,@Intake_Electric_WRO			int
+,@Intake_Electric_RELO			int
+,@Intake_Electric_TP			int
+								
+--Globals								
+,@Globals_Gas_NB				int
+,@Globals_Gas_WRO				int
+,@Globals_Electric_NB			int
+,@Globals_E_Rule_20				int
+,@Globals_E_WRO					int
+,@Globals_E_Relo				int
+,@Globals_TP					int
+
+--Gas		
+,@Gas_1st_Submittal				int
+,@Gas_2nd_Submittal				int
+,@Gas_3rd_Submittal				int
+,@Gas_TA						int
+,@Gas_Approval					int
+,@Gas_Contracts					int
+,@Gas_Contracts_PGE_Pricing     int
+,@Gas_Contracts_Prep            int
+
+--Electric Key Sketches
+,@Electric_KS_Submittal_And_Approval 	int
+
+--Electric Plans
+,@Electric_Plans_1st_Submittal	        int
+,@Electric_Plans_2nd_Submittal	        int
+,@Electric_Plans_3rd_Submittal	        int
+,@Electric_Plans_Approval		        int
+,@Electric_Plans_Contracts		        int
+,@Electric_Plans_Contracts_PGE_Pricing	int
+
+--JTC
+,@JTC_1st_Submittal				int
+,@JTC_2nd_Submittal				int
+,@JTC_Approval					int
+
+--OTHER
+,@BidPackageAvailability 		int
+
+
+SELECT
+--Intake 
+ @Intake_Gas_NB			= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionTypeName='1 - Intake' and AssumptionName = 'Gas NB') 
+,@Intake_Gas_WRO		= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionTypeName='1 - Intake' and AssumptionName = 'Gas WRO')
+,@Intake_Electric_NB	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionTypeName='1 - Intake' and AssumptionName = 'Electric NB')
+,@Intake_Electric_R20	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionTypeName='1 - Intake' and AssumptionName = 'Electric R20')
+,@Intake_Electric_WRO	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionTypeName='1 - Intake' and AssumptionName = 'Electric WRO')
+,@Intake_Electric_RELO	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionTypeName='1 - Intake' and AssumptionName = 'Electric RELO')
+,@Intake_Electric_TP	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionTypeName='1 - Intake' and AssumptionName = 'Electric TP')
+
+--Globlas
+,@Globals_Gas_NB		= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'Gas NB Globals') 
+,@Globals_Gas_WRO		= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'Gas WRO Globals')
+,@Globals_Electric_NB	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'Electric NB Globals')
+,@Globals_E_Rule_20		= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'Electric R20 Globals')
+,@Globals_E_WRO			= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'Electric WRO Globals')
+,@Globals_E_Relo		= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'Electric RELO Globals')
+,@Globals_TP			= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'Electric TP Globals')
+
+--Gas		
+,@Gas_1st_Submittal				= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Gas 1st Submittal')
+,@Gas_2nd_Submittal				= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Gas 2nd Submittal')
+,@Gas_3rd_Submittal				= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Gas 3rd Submittal')
+,@Gas_TA						= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Gas TA')
+,@Gas_Approval					= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Gas Approval')
+,@Gas_Contracts_PGE_Pricing		= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Gas Contracts PGE Pricing')
+,@Gas_Contracts_Prep			= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Gas Contracts Prep')
+
+--Electric Key Sketches
+,@Electric_KS_Submittal_And_Approval 	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Electric KS Submittal And Approval')
+
+--Electric Plans
+,@Electric_Plans_1st_Submittal	        = (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Electric Plans 1st Submittal')
+,@Electric_Plans_2nd_Submittal	        = (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Electric Plans 2nd Submittal')
+,@Electric_Plans_3rd_Submittal	        = (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Electric Plans 3rd Submittal')
+,@Electric_Plans_Approval		        = (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Electric Plans Approval')
+,@Electric_Plans_Contracts_PGE_Pricing	= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Electric Plans Contracts PGE Pricing')
+,@Electric_Plans_Contracts		        = (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Electric Plans Contracts')
+
+--JTC
+,@JTC_1st_Submittal				= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'JTC 1st Submittal')
+,@JTC_2nd_Submittal				= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'JTC 2nd Submittal')
+,@JTC_Approval					= (select Days from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName = 'JTC Approval')
+
+--OTHER
+,@BidPackageAvailability 		=(select Days			from z_Summary_Developer_Schedule_Assumptions_v3 where AssumptionName='Bid Package Availability')
+
+select * 
+into #projects 
+from dbo.getlist(@ProjectIDs,',')
+
+select * 
+into #clients 
+from dbo.getlist(@ClientIDs,',')
+
+
+/* Giacalone Client Project Managers */
+select 
+	[Name]=c.firstname + ' ' + c.lastname
+	,c.firmid
+	,c.empid
+	,f.firmname
+	,fct.firmcontacttypename
+into #clientPMs
+from 
+	contacts c
+	left outer join firms f on c.firmid=f.firmid
+	left outer join firmcontacttypes fct on c.firmcontacttypeid=fct.firmcontacttypeid
+	
+where 
+	c.firmid is not null
+	and
+	(c.firstname is not null or c.lastname is not null)
+	and
+	fct.firmcontacttypename='Project Manager'
+
+
+
+
+
+--Results
+select
+	[ProjectNumber]=p.projectpath
+	,p.projectname
+	,f.firmname
+	,f.firmid
+	,[Client_PM]=u.clientpm
+	,[GDSI_PM]=e1.firstname+' '+e1.LastName
+	,[GDSI_ProjectAdmin]=e2.firstname+' '+e2.LastName
+	,[PGE_JobOwner]=u.pgejobowner
+
+--Upper Left Box
+	,[First_JT_Plan_Availability]			=coalesce(
+												dbo.trimtime(u.jtcfirstsub)
+												,dbo.GetMaxDateTime( -- gets max of 2nd submittals: ENB,ER20,EWRO,ERELO
+													 dbo.trimtime(coalesce(u.Relo2ndSubmittal						,dateadd(day,case when u.ElectricReloGlobalsReceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.ElectricReloGlobalsReceived)) else @Intake_Electric_RELO + @Globals_E_Relo end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+													,dbo.trimtime(coalesce(u.WRO2ndsubmittal						,dateadd(day,case when u.WROglobalsreceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.WROglobalsreceived)) else @Intake_Electric_WRO + @Globals_E_WRO end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+													,dbo.trimtime(coalesce(u.r202ndsubmittal						,dateadd(day,case when u.r20globalsreceived is not null then datediff(day,dbo.trimtime(u.r20intentsubmitted),dbo.trimtime(u.r20globalsreceived)) else @Intake_Electric_R20 + @Globals_E_Rule_20 end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.r20intentsubmitted,@EstimatedIntentSubmittalDate))))
+													,dbo.trimtime(coalesce(u.electricsecondsub						,dateadd(day,case when u.electricglobals is not null then datediff(day,dbo.trimtime(coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub)),dbo.trimtime(u.electricglobals)) else @Intake_Electric_NB + @Globals_Electric_NB end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))	
+												)
+											)
+	,[Bid_Package_Availability]				=dateadd(
+												day
+												,@BidPackageAvailability
+												,coalesce(
+													dbo.trimtime(u.jtcfirstsub)
+													,dbo.GetMaxDateTime( -- gets max of 2nd submittals: ENB,ER20,EWRO,ERELO
+														 dbo.trimtime(coalesce(u.Relo2ndSubmittal						,dateadd(day,case when u.ElectricReloGlobalsReceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.ElectricReloGlobalsReceived)) else @Intake_Electric_RELO + @Globals_E_Relo end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+														,dbo.trimtime(coalesce(u.WRO2ndsubmittal						,dateadd(day,case when u.WROglobalsreceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.WROglobalsreceived)) else @Intake_Electric_WRO + @Globals_E_WRO end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+														,dbo.trimtime(coalesce(u.r202ndsubmittal						,dateadd(day,case when u.r20globalsreceived is not null then datediff(day,dbo.trimtime(u.r20intentsubmitted),dbo.trimtime(u.r20globalsreceived)) else @Intake_Electric_R20 + @Globals_E_Rule_20 end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.r20intentsubmitted,@EstimatedIntentSubmittalDate))))
+														,dbo.trimtime(coalesce(u.electricsecondsub						,dateadd(day,case when u.electricglobals is not null then datediff(day,dbo.trimtime(coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub)),dbo.trimtime(u.electricglobals)) else @Intake_Electric_NB + @Globals_Electric_NB end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))	
+													)
+												)
+											)
+	,[Bid_Package]							=dbo.trimtime(u.customerrequestedbidpackagedate)
+	,[Precon]								=u.precondate
+	,[JT_Start_Date]						=u.jtstartdate
+	,[Energization_Needed]					=u.energizationneeded
+    ,[TP_Needed_By]                         =u.datetpneeded
+	
+--Intents
+	,[Intent_NB]							=dbo.trimtime(coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))						
+	,[Intent_GWRO]							=dbo.trimtime(u.Gaswrorelointentsubmitted)
+	,[Intent_R20]							=dbo.trimtime(u.r20intentsubmitted)
+	,[Intent_EWRO]							=dbo.trimtime(u.WROintentsubmitted)
+	,[Intent_ERELO]							=dbo.trimtime(u.WROintentsubmitted)
+	,[Intent_TP]							=dbo.trimtime(u.tpintentsubmitted)
+
+--Gas Globals
+	,[Global_Gas_Gas]						=dbo.trimtime(coalesce(u.gasglobals						,dateadd(day,@Globals_Gas_NB		,dateadd(day,@Intake_Gas_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate)))))
+	,[Global_Gas_WRO]						=dbo.trimtime(coalesce(u.GasWROglobalsreceived			,dateadd(day,@Globals_Gas_WRO		,dateadd(day,@Intake_Gas_WRO,u.Gaswrorelointentsubmitted))))
+	,[Global_Gas_PM]						=u.gaspmnumber
+	,[Global_Gas_WRO_PM]					=u.GasWROGlobalsnumber
+	
+--Electric Globals
+	,[Global_Electric_NB]					=dbo.trimtime(coalesce(u.electricglobals				,dateadd(day,@Globals_Electric_NB	,dateadd(day,@Intake_Electric_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate)))))
+	,[Global_Electric_R20]					=dbo.trimtime(coalesce(u.r20globalsreceived				,dateadd(day,@Globals_E_Rule_20		,dateadd(day,@Intake_Electric_R20,u.r20intentsubmitted))))
+	,[Global_Electric_EWRO]					=dbo.trimtime(coalesce(u.WROglobalsreceived				,dateadd(day,@Globals_E_WRO			,dateadd(day,@Intake_Electric_WRO,u.WROintentsubmitted))))
+	,[Global_Electric_ERELO]				=dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived	,dateadd(day,@Globals_E_Relo		,dateadd(day,@Intake_Electric_RELO,u.WROintentsubmitted))))
+	,[Global_Electric_TP]					=dbo.trimtime(coalesce(u.TPGlobalsRceived				,dateadd(day,@Globals_TP			,dateadd(day,@Intake_Electric_TP,u.tpintentsubmitted))))
+	,[Global_Electric_NB_PM]				=u.electricpmnumber
+	,[Global_Electric_R20_PM]				=u.R20PMNumber
+	,[Global_Electric_EWRO_PM]				=u.WROPMNumber
+	,[Global_Electric_ERELO_PM]				=u.ElectricReloGlobalsPMnumber
+	,[Global_Electric_TP_PM]				=u.TPPMNumber
+--=========
+--Gas Plans
+--=========
+----Gas
+	,[Gas_PM]								=u.gaspmnumber	
+	,[Intake_Gas_NB]						=dbo.trimtime(dateadd(day,@Intake_Gas_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate)))
+	,[Gas_Globals_Received]					=dbo.trimtime(coalesce(u.gasglobals,dateadd(day,@Globals_Gas_NB+@Intake_Gas_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))
+	,[Gas_1st_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.firstsubgas			
+													,dateadd(
+														day
+														,@Gas_1st_Submittal
+														,dbo.trimtime(coalesce(u.gasglobals,dateadd(day,@Globals_Gas_NB+@Intake_Gas_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))
+													)
+												)
+											)
+	,[Gas_2nd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.gassecondsub			
+													,dateadd(
+														day
+														,@Gas_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.firstsubgas			
+																,dateadd(
+																	day
+																	,@Gas_1st_Submittal
+																	,dbo.trimtime(coalesce(u.gasglobals,dateadd(day,@Globals_Gas_NB+@Intake_Gas_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))
+																)
+															)
+														)
+													)
+												)
+											)
+	,[Gas_3rd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.gasthirdsub			
+													,dateadd(
+														day
+														,@Gas_3rd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.gassecondsub			
+																,dateadd(
+																	day
+																	,@Gas_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.firstsubgas			
+																			,dateadd(
+																				day
+																				,@Gas_1st_Submittal
+																				,dbo.trimtime(coalesce(u.gasglobals,dateadd(day,@Globals_Gas_NB+@Intake_Gas_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[Gas_TA]								=dbo.trimtime(
+												coalesce(
+													u.gastentapprvd			
+													,dateadd(
+														day
+														,@Gas_TA
+														,dbo.trimtime(
+															coalesce(
+																u.gasthirdsub			
+																,dateadd(
+																	day
+																	,@Gas_3rd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.gassecondsub			
+																			,dateadd(
+																				day
+																				,@Gas_2nd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.firstsubgas			
+																						,dateadd(
+																							day
+																							,@Gas_1st_Submittal
+																							,dbo.trimtime(coalesce(u.gasglobals,dateadd(day,@Globals_Gas_NB+@Intake_Gas_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[Gas_Approved]							=coalesce(
+												dbo.trimtime(u.gasapproved)
+												,dateadd(
+													day
+													,@JTC_Approval
+													,dbo.GetMaxDateTime(
+														dbo.trimtime(coalesce(u.electricapproved						,dateadd(day,case when u.electricglobals is not null then datediff(day,dbo.trimtime(coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub)),dbo.trimtime(u.electricglobals)) else @Intake_Electric_NB + @Globals_Electric_NB end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))	
+														,dbo.trimtime(coalesce(u.R20Approved							,dateadd(day,case when u.r20globalsreceived is not null then datediff(day,dbo.trimtime(u.r20intentsubmitted),dbo.trimtime(u.r20globalsreceived)) else @Intake_Electric_R20 + @Globals_E_Rule_20 end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.r20intentsubmitted,@EstimatedIntentSubmittalDate))))
+														,dbo.trimtime(coalesce(u.WROapproved							,dateadd(day,case when u.WROglobalsreceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.WROglobalsreceived)) else @Intake_Electric_WRO + @Globals_E_WRO end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+														,dbo.trimtime(coalesce(u.ReloApproved							,dateadd(day,case when u.ElectricReloGlobalsReceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.ElectricReloGlobalsReceived)) else @Intake_Electric_RELO + @Globals_E_Relo end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+													)
+												)
+											)
+	,[Gas_PGE_Pricing]						=coalesce(
+												dbo.trimtime(u.EstGasNBPricingEndDate)
+												,dateadd(
+													day
+													,@Gas_Contracts_PGE_Pricing
+													,coalesce(
+														dbo.trimtime(u.jtcapproved)
+														,dbo.GetMaxDateTime(
+															dbo.trimtime(
+																coalesce(
+																	u.electricapproved	
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.electricthirdsub	
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.electricsecondsub	
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.electricfirstsub	
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.kssubmitted		
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.R20Approved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.r203rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.r202ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.r201stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.R20KS1stSubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.WROapproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.WRO3rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WRO2ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.WRO1stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.ReloApproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.Relo3rdSubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.Relo2ndSubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.Relo1stSubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)	
+												)
+											)
+			
+	,[Gas_Contracts]						=coalesce(
+												dbo.trimtime(u.gascontractreceived)
+												,dateadd(
+													day
+													,@Gas_Contracts_Prep
+													,coalesce(
+														dbo.trimtime(u.EstGasNBPricingEndDate)
+														,dateadd(
+															day
+															,@Gas_Contracts_PGE_Pricing
+															,coalesce(
+																dbo.trimtime(u.jtcapproved)
+																,dbo.GetMaxDateTime(
+																	dbo.trimtime(
+																		coalesce(
+																			u.electricapproved	
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.electricthirdsub	
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.electricsecondsub	
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.electricfirstsub	
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.kssubmitted		
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.R20Approved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.r203rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.r202ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.r201stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.R20KS1stSubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WROapproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WRO3rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WRO2ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.WRO1stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.ReloApproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.Relo3rdSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.Relo2ndSubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.Relo1stSubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)	
+														)
+													)
+												)
+											)
+----WRO
+	,[Gas_WRO_PM]							=u.GasWROGlobalsnumber
+	,[Intake_Gas_WRO]						=dbo.trimtime(dateadd(day,@Intake_Gas_WRO,u.Gaswrorelointentsubmitted))
+	,[Gas_WRO_Globals_Received]				=dbo.trimtime(coalesce(u.GasWROglobalsreceived	,dateadd(day,@Globals_Gas_WRO+@Intake_Gas_WRO,u.Gaswrorelointentsubmitted)))
+	,[Gas_WRO_1st_Submittal]				=dbo.trimtime(
+												coalesce(
+													u.GasWRO1stsubmittal		
+													,dateadd(
+														day
+														,@Gas_1st_Submittal
+														,dbo.trimtime(coalesce(u.GasWROglobalsreceived	,dateadd(day,@Globals_Gas_WRO+@Intake_Gas_WRO,u.Gaswrorelointentsubmitted)))
+													)
+												)
+											)
+	,[Gas_WRO_2nd_Submittal]				=dbo.trimtime(
+												coalesce(
+													u.GasWRO2ndsubmittal		
+													,dateadd(
+														day
+														,@Gas_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.GasWRO1stsubmittal		
+																,dateadd(
+																	day
+																	,@Gas_1st_Submittal
+																	,dbo.trimtime(coalesce(u.GasWROglobalsreceived	,dateadd(day,@Globals_Gas_WRO+@Intake_Gas_WRO,u.Gaswrorelointentsubmitted)))
+																)
+															)
+														)
+													)
+												)
+											)
+	,[Gas_WRO_3rd_Submittal]				=dbo.trimtime(
+												coalesce(
+													u.GasWRO3rdsubmittal		
+													,dateadd(
+														day
+														,@Gas_3rd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.GasWRO2ndsubmittal		
+																,dateadd(
+																	day
+																	,@Gas_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.GasWRO1stsubmittal		
+																			,dateadd(
+																				day
+																				,@Gas_1st_Submittal
+																				,dbo.trimtime(coalesce(u.GasWROglobalsreceived	,dateadd(day,@Globals_Gas_WRO+@Intake_Gas_WRO,u.Gaswrorelointentsubmitted)))
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[Gas_WRO_TA]							=dbo.trimtime(
+												coalesce(
+													u.Gaswrorelota			
+													,dateadd(
+														day
+														,@Gas_TA
+														,dbo.trimtime(
+															coalesce(
+																u.GasWRO3rdsubmittal		
+																,dateadd(
+																	day
+																	,@Gas_3rd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.GasWRO2ndsubmittal		
+																			,dateadd(
+																				day
+																				,@Gas_2nd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.GasWRO1stsubmittal		
+																						,dateadd(
+																							day
+																							,@Gas_1st_Submittal
+																							,dbo.trimtime(coalesce(u.GasWROglobalsreceived	,dateadd(day,@Globals_Gas_WRO+@Intake_Gas_WRO,u.Gaswrorelointentsubmitted)))
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[Gas_WRO_Approved]						=coalesce(
+												dbo.trimtime(u.gaswroapproved)
+												,dateadd(
+													day
+													,@JTC_Approval
+													,dbo.GetMaxDateTime(
+														dbo.trimtime(coalesce(u.electricapproved						,dateadd(day,case when u.electricglobals is not null then datediff(day,dbo.trimtime(coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub)),dbo.trimtime(u.electricglobals)) else @Intake_Electric_NB + @Globals_Electric_NB end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate))))	
+														,dbo.trimtime(coalesce(u.R20Approved							,dateadd(day,case when u.r20globalsreceived is not null then datediff(day,dbo.trimtime(u.r20intentsubmitted),dbo.trimtime(u.r20globalsreceived)) else @Intake_Electric_R20 + @Globals_E_Rule_20 end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.r20intentsubmitted,@EstimatedIntentSubmittalDate))))
+														,dbo.trimtime(coalesce(u.WROapproved							,dateadd(day,case when u.WROglobalsreceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.WROglobalsreceived)) else @Intake_Electric_WRO + @Globals_E_WRO end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+														,dbo.trimtime(coalesce(u.ReloApproved							,dateadd(day,case when u.ElectricReloGlobalsReceived is not null then datediff(day,dbo.trimtime(u.WROintentsubmitted),dbo.trimtime(u.ElectricReloGlobalsReceived)) else @Intake_Electric_RELO + @Globals_E_Relo end+@Electric_KS_Submittal_And_Approval+@Electric_Plans_1st_Submittal+@Electric_Plans_2nd_Submittal+@Electric_Plans_3rd_Submittal+@Electric_Plans_Approval,coalesce(u.WROintentsubmitted,@EstimatedIntentSubmittalDate))))
+													)
+												)
+											)
+	,[Gas_WRO_PGE_Pricing]					=coalesce(
+												dbo.trimtime(u.EstGasWROPricingEndDate)
+												,dateadd(
+													day
+													,@Gas_Contracts_PGE_Pricing
+													,coalesce(
+														dbo.trimtime(u.jtcapproved)
+														,dbo.GetMaxDateTime(
+															dbo.trimtime(
+																coalesce(
+																	u.electricapproved	
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.electricthirdsub	
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.electricsecondsub	
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.electricfirstsub	
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.kssubmitted		
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.R20Approved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.r203rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.r202ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.r201stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.R20KS1stSubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.WROapproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.WRO3rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WRO2ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.WRO1stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.ReloApproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.Relo3rdSubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.Relo2ndSubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.Relo1stSubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[Gas_WRO_Contracts]					=coalesce(
+												dbo.trimtime(u.GasWROContractReceived)
+												,dateadd(
+													day
+													,@Gas_Contracts_Prep
+													,coalesce(
+														dbo.trimtime(u.EstGasWROPricingEndDate)
+														,dateadd(
+															day
+															,@Gas_Contracts_PGE_Pricing
+															,coalesce(
+																dbo.trimtime(u.jtcapproved)
+																,dbo.GetMaxDateTime(
+																	dbo.trimtime(
+																		coalesce(
+																			u.electricapproved	
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.electricthirdsub	
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.electricsecondsub	
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.electricfirstsub	
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.kssubmitted		
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.R20Approved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.r203rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.r202ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.r201stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.R20KS1stSubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WROapproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WRO3rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WRO2ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.WRO1stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.ReloApproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.Relo3rdSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.Relo2ndSubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.Relo1stSubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+--==============
+--Electric Plans
+--==============
+----NB
+	,[EP_NB_PM]					=u.electricpmnumber
+	,[Intake_Electric_NB]		=dbo.trimtime(dateadd(day,@Intake_Electric_NB,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub,@EstimatedIntentSubmittalDate)))
+	,[EP_NB_Globals_Received]	=dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+	,[EP_NB_KS]             	=dbo.trimtime(
+									coalesce(
+										u.kssubmitted		
+										,dateadd(
+											day
+											,@Electric_KS_Submittal_And_Approval
+											,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+										)
+									)
+								)	
+	,[EP_NB_1st_Submittal]		=dbo.trimtime(
+									coalesce(
+										u.electricfirstsub	
+										,dateadd(
+											day
+											,@Electric_Plans_1st_Submittal
+											,dbo.trimtime(
+												coalesce(
+													u.kssubmitted		
+													,dateadd(
+														day
+														,@Electric_KS_Submittal_And_Approval
+														,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+													)
+												)
+											)
+										)
+									)
+								)	
+	,[EP_NB_2nd_Submittal]		=dbo.trimtime(
+									coalesce(
+										u.electricsecondsub	
+										,dateadd(
+											day
+											,@Electric_Plans_2nd_Submittal
+											,dbo.trimtime(
+												coalesce(
+													u.electricfirstsub	
+													,dateadd(
+														day
+														,@Electric_Plans_1st_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.kssubmitted		
+																,dateadd(
+																	day
+																	,@Electric_KS_Submittal_And_Approval
+																	,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+								)	
+	,[EP_NB_3rd_Submittal]		=dbo.trimtime(
+									coalesce(
+										u.electricthirdsub	
+										,dateadd(
+											day
+											,@Electric_Plans_3rd_Submittal
+											,dbo.trimtime(
+												coalesce(
+													u.electricsecondsub	
+													,dateadd(
+														day
+														,@Electric_Plans_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.electricfirstsub	
+																,dateadd(
+																	day
+																	,@Electric_Plans_1st_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.kssubmitted		
+																			,dateadd(
+																				day
+																				,@Electric_KS_Submittal_And_Approval
+																				,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+								)	
+	,[EP_NB_Approved]			=dbo.trimtime(
+									coalesce(
+										u.electricapproved	
+										,dateadd(
+											day
+											,@Electric_Plans_Approval
+											,dbo.trimtime(
+												coalesce(
+													u.electricthirdsub	
+													,dateadd(
+														day
+														,@Electric_Plans_3rd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.electricsecondsub	
+																,dateadd(
+																	day
+																	,@Electric_Plans_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.electricfirstsub	
+																			,dateadd(
+																				day
+																				,@Electric_Plans_1st_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.kssubmitted		
+																						,dateadd(
+																							day
+																							,@Electric_KS_Submittal_And_Approval
+																							,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+								)
+	,[EP_NB_PGE_Pricing]		=coalesce(
+									dbo.trimtime(u.EstElectricNBPricingEndDate)
+									,dateadd(
+										day
+										,@Electric_Plans_Contracts_PGE_Pricing
+										,coalesce(
+											dbo.trimtime(u.jtcapproved)
+											,dbo.GetMaxDateTime(
+												dbo.trimtime(
+													coalesce(
+														u.electricapproved	
+														,dateadd(
+															day
+															,@Electric_Plans_Approval
+															,dbo.trimtime(
+																coalesce(
+																	u.electricthirdsub	
+																	,dateadd(
+																		day
+																		,@Electric_Plans_3rd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.electricsecondsub	
+																				,dateadd(
+																					day
+																					,@Electric_Plans_2nd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.electricfirstsub	
+																							,dateadd(
+																								day
+																								,@Electric_Plans_1st_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.kssubmitted		
+																										,dateadd(
+																											day
+																											,@Electric_KS_Submittal_And_Approval
+																											,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+												,dbo.trimtime(
+													coalesce(
+														u.R20Approved							
+														,dateadd(
+															day
+															,@Electric_Plans_Approval
+															,dbo.trimtime(
+																coalesce(
+																	u.r203rdsubmittal						
+																	,dateadd(
+																		day
+																		,@Electric_Plans_3rd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.r202ndsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_2nd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.r201stsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_1st_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.R20KS1stSubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_KS_Submittal_And_Approval
+																											,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+												,dbo.trimtime(
+													coalesce(
+														u.WROapproved							
+														,dateadd(
+															day
+															,@Electric_Plans_Approval
+															,dbo.trimtime(
+																coalesce(
+																	u.WRO3rdsubmittal						
+																	,dateadd(
+																		day
+																		,@Electric_Plans_3rd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.WRO2ndsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_2nd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WRO1stsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_1st_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.WROks1stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_KS_Submittal_And_Approval
+																											,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+												,dbo.trimtime(
+													coalesce(
+														u.ReloApproved							
+														,dateadd(
+															day
+															,@Electric_Plans_Approval
+															,dbo.trimtime(
+																coalesce(
+																	u.Relo3rdSubmittal						
+																	,dateadd(
+																		day
+																		,@Electric_Plans_3rd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.Relo2ndSubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_2nd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.Relo1stSubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_1st_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.WROks1stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_KS_Submittal_And_Approval
+																											,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+								)
+	,[EP_NB_Contracts]			=coalesce(
+									dbo.trimtime(u.electriccontractreceived)
+									,dateadd(
+										day
+										,@Electric_Plans_Contracts
+										,coalesce(
+											dbo.trimtime(u.EstElectricNBPricingEndDate)
+											,dateadd(
+												day
+												,@Electric_Plans_Contracts_PGE_Pricing
+												,coalesce(
+													dbo.trimtime(u.jtcapproved)
+													,dbo.GetMaxDateTime(
+														dbo.trimtime(
+															coalesce(
+																u.electricapproved	
+																,dateadd(
+																	day
+																	,@Electric_Plans_Approval
+																	,dbo.trimtime(
+																		coalesce(
+																			u.electricthirdsub	
+																			,dateadd(
+																				day
+																				,@Electric_Plans_3rd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.electricsecondsub	
+																						,dateadd(
+																							day
+																							,@Electric_Plans_2nd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.electricfirstsub	
+																									,dateadd(
+																										day
+																										,@Electric_Plans_1st_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.kssubmitted		
+																												,dateadd(
+																													day
+																													,@Electric_KS_Submittal_And_Approval
+																													,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+														,dbo.trimtime(
+															coalesce(
+																u.R20Approved							
+																,dateadd(
+																	day
+																	,@Electric_Plans_Approval
+																	,dbo.trimtime(
+																		coalesce(
+																			u.r203rdsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_3rd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.r202ndsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_2nd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.r201stsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_1st_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.R20KS1stSubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_KS_Submittal_And_Approval
+																													,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+														,dbo.trimtime(
+															coalesce(
+																u.WROapproved							
+																,dateadd(
+																	day
+																	,@Electric_Plans_Approval
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WRO3rdsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_3rd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WRO2ndsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_2nd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WRO1stsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_1st_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.WROks1stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_KS_Submittal_And_Approval
+																													,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+														,dbo.trimtime(
+															coalesce(
+																u.ReloApproved							
+																,dateadd(
+																	day
+																	,@Electric_Plans_Approval
+																	,dbo.trimtime(
+																		coalesce(
+																			u.Relo3rdSubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_3rd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.Relo2ndSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_2nd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.Relo1stSubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_1st_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.WROks1stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_KS_Submittal_And_Approval
+																													,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+										)
+									)
+								)
+----R20
+	,[EP_R20_PM]							=u.R20PMNumber
+	,[Intake_Electric_R20]					=dbo.trimtime(dateadd(day,@Intake_Electric_R20,u.r20intentsubmitted))
+	,[EP_R20_Globals_Received]				=dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+	,[EP_R20_KS]            				=dbo.trimtime(
+												coalesce(
+													u.R20KS1stSubmittal						
+													,dateadd(
+														day
+														,@Electric_KS_Submittal_And_Approval
+														,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+													)
+												)
+											)
+	,[EP_R20_1st_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.r201stsubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_1st_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.R20KS1stSubmittal						
+																,dateadd(
+																	day
+																	,@Electric_KS_Submittal_And_Approval
+																	,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_R20_2nd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.r202ndsubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.r201stsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_1st_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.R20KS1stSubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_KS_Submittal_And_Approval
+																				,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_R20_3rd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.r203rdsubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_3rd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.r202ndsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.r201stsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_1st_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.R20KS1stSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_KS_Submittal_And_Approval
+																							,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_R20_Approved]						=dbo.trimtime(
+												coalesce(
+													u.R20Approved							
+													,dateadd(
+														day
+														,@Electric_Plans_Approval
+														,dbo.trimtime(
+															coalesce(
+																u.r203rdsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_3rd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.r202ndsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_2nd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.r201stsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_1st_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.R20KS1stSubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_KS_Submittal_And_Approval
+																										,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_R20_PGE_Pricing]					=coalesce(
+												dbo.trimtime(u.EstElectricR20PricingEndDate)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts_PGE_Pricing
+													,coalesce(
+														dbo.trimtime(u.jtcapproved)
+														,dbo.GetMaxDateTime(
+															dbo.trimtime(
+																coalesce(
+																	u.electricapproved	
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.electricthirdsub	
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.electricsecondsub	
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.electricfirstsub	
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.kssubmitted		
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.R20Approved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.r203rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.r202ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.r201stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.R20KS1stSubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.WROapproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.WRO3rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WRO2ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.WRO1stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.ReloApproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.Relo3rdSubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.Relo2ndSubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.Relo1stSubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_R20_Contracts]						=coalesce(
+												dbo.trimtime(u.ElectricRule20ContractReceived)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts
+													,coalesce(
+														dbo.trimtime(u.EstElectricR20PricingEndDate)
+														,dateadd(
+															day
+															,@Electric_Plans_Contracts_PGE_Pricing
+															,coalesce(
+																dbo.trimtime(u.jtcapproved)
+																,dbo.GetMaxDateTime(
+																	dbo.trimtime(
+																		coalesce(
+																			u.electricapproved	
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.electricthirdsub	
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.electricsecondsub	
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.electricfirstsub	
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.kssubmitted		
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.R20Approved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.r203rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.r202ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.r201stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.R20KS1stSubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WROapproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WRO3rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WRO2ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.WRO1stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.ReloApproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.Relo3rdSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.Relo2ndSubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.Relo1stSubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+----WRO
+	,[EP_WRO_PM]							=u.WROPMNumber
+	,[Intake_Electric_WRO]					=dbo.trimtime(dateadd(day,@Intake_Electric_WRO,u.WROintentsubmitted))
+	,[EP_WRO_Globals_Received]				=dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+	,[EP_WRO_KS]            				=dbo.trimtime(
+												coalesce(
+													u.WROks1stsubmittal						
+													,dateadd(
+														day
+														,@Electric_KS_Submittal_And_Approval
+														,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+													)
+												)
+											)
+	,[EP_WRO_1st_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.WRO1stsubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_1st_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.WROks1stsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_KS_Submittal_And_Approval
+																	,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_WRO_2nd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.WRO2ndsubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.WRO1stsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_1st_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WROks1stsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_KS_Submittal_And_Approval
+																				,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_WRO_3rd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.WRO3rdsubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_3rd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.WRO2ndsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WRO1stsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_1st_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WROks1stsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_KS_Submittal_And_Approval
+																							,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_WRO_Approved]						=dbo.trimtime(
+												coalesce(
+													u.WROapproved							
+													,dateadd(
+														day
+														,@Electric_Plans_Approval
+														,dbo.trimtime(
+															coalesce(
+																u.WRO3rdsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_3rd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WRO2ndsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_2nd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WRO1stsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_1st_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WROks1stsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_KS_Submittal_And_Approval
+																										,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_WRO_PGE_Pricing]					=coalesce(
+												dbo.trimtime(u.EstElectricWROPricingEndDate)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts_PGE_Pricing
+													,coalesce(
+														dbo.trimtime(u.jtcapproved)
+														,dbo.GetMaxDateTime(
+															dbo.trimtime(
+																coalesce(
+																	u.electricapproved	
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.electricthirdsub	
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.electricsecondsub	
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.electricfirstsub	
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.kssubmitted		
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.R20Approved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.r203rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.r202ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.r201stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.R20KS1stSubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.WROapproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.WRO3rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WRO2ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.WRO1stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.ReloApproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.Relo3rdSubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.Relo2ndSubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.Relo1stSubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_WRO_Contracts]						=coalesce(
+												dbo.trimtime(u.ElectricWROReloContractReceived)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts
+													,coalesce(
+														dbo.trimtime(u.EstElectricWROPricingEndDate)
+														,dateadd(
+															day
+															,@Electric_Plans_Contracts_PGE_Pricing
+															,coalesce(
+																dbo.trimtime(u.jtcapproved)
+																,dbo.GetMaxDateTime(
+																	dbo.trimtime(
+																		coalesce(
+																			u.electricapproved	
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.electricthirdsub	
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.electricsecondsub	
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.electricfirstsub	
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.kssubmitted		
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.R20Approved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.r203rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.r202ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.r201stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.R20KS1stSubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WROapproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WRO3rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WRO2ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.WRO1stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.ReloApproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.Relo3rdSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.Relo2ndSubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.Relo1stSubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+----RELO
+    ,[EP_RELO_PM]							=u.ElectricReloGlobalsPMnumber
+	,[Intake_Electric_RELO]					=dbo.trimtime(dateadd(day,@Intake_Electric_RELO,u.WROintentsubmitted))
+	,[EP_RELO_Globals_Received]				=dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+	,[EP_RELO_KS]            				=dbo.trimtime(
+												coalesce(
+													u.WROks1stsubmittal						
+													,dateadd(
+														day
+														,@Electric_KS_Submittal_And_Approval
+														,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+													)
+												)
+											)
+	,[EP_RELO_1st_Submittal]				=dbo.trimtime(
+												coalesce(
+													u.Relo1stSubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_1st_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.WROks1stsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_KS_Submittal_And_Approval
+																	,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_RELO_2nd_Submittal]				=dbo.trimtime(
+												coalesce(
+													u.Relo2ndSubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.Relo1stSubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_1st_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WROks1stsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_KS_Submittal_And_Approval
+																				,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_RELO_3rd_Submittal]				=dbo.trimtime(
+												coalesce(
+													u.Relo3rdSubmittal						
+													,dateadd(
+														day
+														,@Electric_Plans_3rd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.Relo2ndSubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.Relo1stSubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_1st_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WROks1stsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_KS_Submittal_And_Approval
+																							,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_RELO_Approved]						=dbo.trimtime(
+												coalesce(
+													u.ReloApproved							
+													,dateadd(
+														day
+														,@Electric_Plans_Approval
+														,dbo.trimtime(
+															coalesce(
+																u.Relo3rdSubmittal						
+																,dateadd(
+																	day
+																	,@Electric_Plans_3rd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.Relo2ndSubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_Plans_2nd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.Relo1stSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_1st_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WROks1stsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_KS_Submittal_And_Approval
+																										,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_RELO_PGE_Pricing]					=coalesce(
+												dbo.trimtime(u.EstElectricRELOPricingEndDate)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts_PGE_Pricing
+													,coalesce(
+														dbo.trimtime(u.jtcapproved)
+														,dbo.GetMaxDateTime(
+															dbo.trimtime(
+																coalesce(
+																	u.electricapproved	
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.electricthirdsub	
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.electricsecondsub	
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.electricfirstsub	
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.kssubmitted		
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.R20Approved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.r203rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.r202ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.r201stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.R20KS1stSubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.WROapproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.WRO3rdsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WRO2ndsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.WRO1stsubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.ReloApproved							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_Approval
+																		,dbo.trimtime(
+																			coalesce(
+																				u.Relo3rdSubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_3rd_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.Relo2ndSubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_Plans_2nd_Submittal
+																								,dbo.trimtime(
+																									coalesce(
+																										u.Relo1stSubmittal						
+																										,dateadd(
+																											day
+																											,@Electric_Plans_1st_Submittal
+																											,dbo.trimtime(
+																												coalesce(
+																													u.WROks1stsubmittal						
+																													,dateadd(
+																														day
+																														,@Electric_KS_Submittal_And_Approval
+																														,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[EP_RELO_Contracts]					=coalesce(
+												dbo.trimtime(u.ElectricRELOContractReceived)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts
+													,coalesce(
+														dbo.trimtime(u.EstElectricRELOPricingEndDate)
+														,dateadd(
+															day
+															,@Electric_Plans_Contracts_PGE_Pricing
+															,coalesce(
+																dbo.trimtime(u.jtcapproved)
+																,dbo.GetMaxDateTime(
+																	dbo.trimtime(
+																		coalesce(
+																			u.electricapproved	
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.electricthirdsub	
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.electricsecondsub	
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.electricfirstsub	
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.kssubmitted		
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.R20Approved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.r203rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.r202ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.r201stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.R20KS1stSubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.WROapproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.WRO3rdsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.WRO2ndsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.WRO1stsubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																	,dbo.trimtime(
+																		coalesce(
+																			u.ReloApproved							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_Approval
+																				,dbo.trimtime(
+																					coalesce(
+																						u.Relo3rdSubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_Plans_3rd_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.Relo2ndSubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_Plans_2nd_Submittal
+																										,dbo.trimtime(
+																											coalesce(
+																												u.Relo1stSubmittal						
+																												,dateadd(
+																													day
+																													,@Electric_Plans_1st_Submittal
+																													,dbo.trimtime(
+																														coalesce(
+																															u.WROks1stsubmittal						
+																															,dateadd(
+																																day
+																																,@Electric_KS_Submittal_And_Approval
+																																,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																															)
+																														)
+																													)
+																												)
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+----TP
+	,[EP_TP_PM]								=u.TPPMNumber
+	,[Intake_Electric_TP]					=dbo.trimtime(dateadd(day,@Intake_Electric_TP,u.tpintentsubmitted))
+	,[EP_TP_Globals_Received]				=dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+	,[EP_TP_KS]             				=dbo.trimtime(
+												coalesce(
+													u.tpks1stsubmittal						
+													,dateadd(
+														day
+														,@Electric_KS_Submittal_And_Approval
+														,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+													)
+												)
+											)
+	,[EP_TP_1st_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.tp1stsubmittal							
+													,dateadd(
+														day
+														,@Electric_Plans_1st_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.tpks1stsubmittal						
+																,dateadd(
+																	day
+																	,@Electric_KS_Submittal_And_Approval
+																	,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																)
+															)
+														)
+													)
+												)	
+											)
+	,[EP_TP_2nd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.tp2ndsubmittal							
+													,dateadd(
+														day
+														,@Electric_Plans_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.tp1stsubmittal							
+																,dateadd(
+																	day
+																	,@Electric_Plans_1st_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.tpks1stsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_KS_Submittal_And_Approval
+																				,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																			)
+																		)
+																	)
+																)
+															)	
+														)
+													)
+												)	
+											)
+	,[EP_TP_3rd_Submittal]					=dbo.trimtime(
+												coalesce(
+													u.tp3rdsubmittal							
+													,dateadd(
+														day
+														,@Electric_Plans_3rd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.tp2ndsubmittal							
+																,dateadd(
+																	day
+																	,@Electric_Plans_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.tp1stsubmittal							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_1st_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.tpks1stsubmittal						
+																						,dateadd(
+																							day
+																							,@Electric_KS_Submittal_And_Approval
+																							,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																						)
+																					)
+																				)
+																			)
+																		)	
+																	)
+																)
+															)	
+														)
+													)
+												)
+											)
+	,[EP_TP_Approved]						=dbo.trimtime(
+												coalesce(
+													u.tpapproved								
+													,dateadd(
+														day
+														,@Electric_Plans_Approval
+														,dbo.trimtime(
+															coalesce(
+																u.tp3rdsubmittal							
+																,dateadd(
+																	day
+																	,@Electric_Plans_3rd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.tp2ndsubmittal							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_2nd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.tp1stsubmittal							
+																						,dateadd(
+																							day
+																							,@Electric_Plans_1st_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.tpks1stsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_KS_Submittal_And_Approval
+																										,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																									)
+																								)
+																							)
+																						)
+																					)	
+																				)
+																			)
+																		)	
+																	)
+																)
+															)
+														)
+													)
+												)	
+											)
+	,[EP_TP_PGE_Pricing]					=coalesce(
+												dbo.trimtime(u.EstElectricTPPricingEndDate)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts_PGE_Pricing
+													,dateadd(
+														day
+														,@JTC_Approval
+														,dateadd(
+															day
+															,@JTC_2nd_Submittal
+															,dbo.trimtime(
+																coalesce(
+																	u.tp2ndsubmittal							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_2nd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.tp1stsubmittal							
+																				,dateadd(
+																					day
+																					,@Electric_Plans_1st_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.tpks1stsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_KS_Submittal_And_Approval
+																								,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																							)
+																						)
+																					)
+																				)
+																			)	
+																		)
+																	)
+																)	
+															)
+														)
+													)
+												)
+											)
+	,[EP_TP_Contracts]						=coalesce(
+												dbo.trimtime(u.ElectricTPContractReceived)
+												,dateadd(
+													day
+													,@Electric_Plans_Contracts
+													,coalesce(
+														dbo.trimtime(u.EstElectricTPPricingEndDate)
+														,dateadd(
+															day
+															,@Electric_Plans_Contracts_PGE_Pricing
+															,dateadd(
+																day
+																,@JTC_Approval
+																,dateadd(
+																	day
+																	,@JTC_2nd_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.tp2ndsubmittal							
+																			,dateadd(
+																				day
+																				,@Electric_Plans_2nd_Submittal
+																				,dbo.trimtime(
+																					coalesce(
+																						u.tp1stsubmittal							
+																						,dateadd(
+																							day
+																							,@Electric_Plans_1st_Submittal
+																							,dbo.trimtime(
+																								coalesce(
+																									u.tpks1stsubmittal						
+																									,dateadd(
+																										day
+																										,@Electric_KS_Submittal_And_Approval
+																										,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																									)
+																								)
+																							)
+																						)
+																					)	
+																				)
+																			)
+																		)	
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+--====
+--JTC
+--====
+----NB/R20
+	,[JTC_NBR20_1st_Submittal]				=coalesce(
+												u.jtcfirstsub
+												,dbo.GetMaxDateTime( -- gets max of 2nd submittals: ENB,ER20,EWRO,ERELO
+													dbo.trimtime(--ENB
+														coalesce(
+															u.electricsecondsub	
+															,dateadd(
+																day
+																,@Electric_Plans_2nd_Submittal
+																,dbo.trimtime(
+																	coalesce(
+																		u.electricfirstsub	
+																		,dateadd(
+																			day
+																			,@Electric_Plans_1st_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.kssubmitted		
+																					,dateadd(
+																						day
+																						,@Electric_KS_Submittal_And_Approval
+																						,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+													,dbo.trimtime(--ER20
+														coalesce(
+															u.r202ndsubmittal						
+															,dateadd(
+																day
+																,@Electric_Plans_2nd_Submittal
+																,dbo.trimtime(
+																	coalesce(
+																		u.r201stsubmittal						
+																		,dateadd(
+																			day
+																			,@Electric_Plans_1st_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.R20KS1stSubmittal						
+																					,dateadd(
+																						day
+																						,@Electric_KS_Submittal_And_Approval
+																						,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+													,dbo.trimtime(--EWRO
+														coalesce(
+															u.WRO2ndsubmittal						
+															,dateadd(
+																day
+																,@Electric_Plans_2nd_Submittal
+																,dbo.trimtime(
+																	coalesce(
+																		u.WRO1stsubmittal						
+																		,dateadd(
+																			day
+																			,@Electric_Plans_1st_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.WROks1stsubmittal						
+																					,dateadd(
+																						day
+																						,@Electric_KS_Submittal_And_Approval
+																						,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+													,dbo.trimtime(--ERELO
+														coalesce(
+															u.Relo2ndSubmittal						
+															,dateadd(
+																day
+																,@Electric_Plans_2nd_Submittal
+																,dbo.trimtime(
+																	coalesce(
+																		u.Relo1stSubmittal						
+																		,dateadd(
+																			day
+																			,@Electric_Plans_1st_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.WROks1stsubmittal						
+																					,dateadd(
+																						day
+																						,@Electric_KS_Submittal_And_Approval
+																						,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+	,[JTC_NBR20_2nd_Submittal]				=coalesce(
+												dbo.trimtime(u.jtcsecondsub)
+												,dateadd(
+													day
+													,@JTC_2nd_Submittal
+													,coalesce(
+														u.jtcfirstsub
+														,dbo.GetMaxDateTime( -- gets max of 2nd submittals: ENB,ER20,EWRO,ERELO
+															dbo.trimtime(--ENB
+																coalesce(
+																	u.electricsecondsub	
+																	,dateadd(
+																		day
+																		,@Electric_Plans_2nd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.electricfirstsub	
+																				,dateadd(
+																					day
+																					,@Electric_Plans_1st_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.kssubmitted		
+																							,dateadd(
+																								day
+																								,@Electric_KS_Submittal_And_Approval
+																								,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.r202ndsubmittal						
+																	,dateadd(
+																		day
+																		,@Electric_Plans_2nd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.r201stsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_1st_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.R20KS1stSubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_KS_Submittal_And_Approval
+																								,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.WRO2ndsubmittal						
+																	,dateadd(
+																		day
+																		,@Electric_Plans_2nd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.WRO1stsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_1st_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WROks1stsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_KS_Submittal_And_Approval
+																								,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+															,dbo.trimtime(
+																coalesce(
+																	u.Relo2ndSubmittal						
+																	,dateadd(
+																		day
+																		,@Electric_Plans_2nd_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.Relo1stSubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_Plans_1st_Submittal
+																					,dbo.trimtime(
+																						coalesce(
+																							u.WROks1stsubmittal						
+																							,dateadd(
+																								day
+																								,@Electric_KS_Submittal_And_Approval
+																								,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+		,[JTC_NBR20_Approved]				=coalesce(
+												dbo.trimtime(u.jtcapproved)
+												,dbo.GetMaxDateTime(
+													dbo.trimtime(
+														coalesce(
+															u.electricapproved	
+															,dateadd(
+																day
+																,@Electric_Plans_Approval
+																,dbo.trimtime(
+																	coalesce(
+																		u.electricthirdsub	
+																		,dateadd(
+																			day
+																			,@Electric_Plans_3rd_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.electricsecondsub	
+																					,dateadd(
+																						day
+																						,@Electric_Plans_2nd_Submittal
+																						,dbo.trimtime(
+																							coalesce(
+																								u.electricfirstsub	
+																								,dateadd(
+																									day
+																									,@Electric_Plans_1st_Submittal
+																									,dbo.trimtime(
+																										coalesce(
+																											u.kssubmitted		
+																											,dateadd(
+																												day
+																												,@Electric_KS_Submittal_And_Approval
+																												,dbo.trimtime(coalesce(u.electricglobals,dateadd(day,@Intake_Electric_NB + @Globals_Electric_NB ,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub))))	
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+													,dbo.trimtime(
+														coalesce(
+															u.R20Approved							
+															,dateadd(
+																day
+																,@Electric_Plans_Approval
+																,dbo.trimtime(
+																	coalesce(
+																		u.r203rdsubmittal						
+																		,dateadd(
+																			day
+																			,@Electric_Plans_3rd_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.r202ndsubmittal						
+																					,dateadd(
+																						day
+																						,@Electric_Plans_2nd_Submittal
+																						,dbo.trimtime(
+																							coalesce(
+																								u.r201stsubmittal						
+																								,dateadd(
+																									day
+																									,@Electric_Plans_1st_Submittal
+																									,dbo.trimtime(
+																										coalesce(
+																											u.R20KS1stSubmittal						
+																											,dateadd(
+																												day
+																												,@Electric_KS_Submittal_And_Approval
+																												,dbo.trimtime(coalesce(u.r20globalsreceived,dbo.trimtime(dateadd(day,@Globals_E_Rule_20+@Intake_Electric_R20,u.r20intentsubmitted))))
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+													,dbo.trimtime(
+														coalesce(
+															u.WROapproved							
+															,dateadd(
+																day
+																,@Electric_Plans_Approval
+																,dbo.trimtime(
+																	coalesce(
+																		u.WRO3rdsubmittal						
+																		,dateadd(
+																			day
+																			,@Electric_Plans_3rd_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.WRO2ndsubmittal						
+																					,dateadd(
+																						day
+																						,@Electric_Plans_2nd_Submittal
+																						,dbo.trimtime(
+																							coalesce(
+																								u.WRO1stsubmittal						
+																								,dateadd(
+																									day
+																									,@Electric_Plans_1st_Submittal
+																									,dbo.trimtime(
+																										coalesce(
+																											u.WROks1stsubmittal						
+																											,dateadd(
+																												day
+																												,@Electric_KS_Submittal_And_Approval
+																												,dbo.trimtime(coalesce(u.WROglobalsreceived,dbo.trimtime(dateadd(day,@Globals_E_WRO+@Intake_Electric_WRO,u.WROintentsubmitted))))
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+													,dbo.trimtime(
+														coalesce(
+															u.ReloApproved							
+															,dateadd(
+																day
+																,@Electric_Plans_Approval
+																,dbo.trimtime(
+																	coalesce(
+																		u.Relo3rdSubmittal						
+																		,dateadd(
+																			day
+																			,@Electric_Plans_3rd_Submittal
+																			,dbo.trimtime(
+																				coalesce(
+																					u.Relo2ndSubmittal						
+																					,dateadd(
+																						day
+																						,@Electric_Plans_2nd_Submittal
+																						,dbo.trimtime(
+																							coalesce(
+																								u.Relo1stSubmittal						
+																								,dateadd(
+																									day
+																									,@Electric_Plans_1st_Submittal
+																									,dbo.trimtime(
+																										coalesce(
+																											u.WROks1stsubmittal						
+																											,dateadd(
+																												day
+																												,@Electric_KS_Submittal_And_Approval
+																												,dbo.trimtime(coalesce(u.ElectricReloGlobalsReceived,dbo.trimtime(dateadd(day,@Globals_E_Relo+@Intake_Electric_RELO,u.WROintentsubmitted))))
+																											)
+																										)
+																									)
+																								)
+																							)
+																						)
+																					)
+																				)
+																			)
+																		)
+																	)
+																)
+															)
+														)
+													)
+												)
+											)
+----WRO
+	,[JTC_TP_1st_Submittal]				=dbo.trimtime(
+											coalesce(
+												u.tp2ndsubmittal							
+												,dateadd(
+													day
+													,@Electric_Plans_2nd_Submittal
+													,dbo.trimtime(
+														coalesce(
+															u.tp1stsubmittal							
+															,dateadd(
+																day
+																,@Electric_Plans_1st_Submittal
+																,dbo.trimtime(
+																	coalesce(
+																		u.tpks1stsubmittal						
+																		,dateadd(
+																			day
+																			,@Electric_KS_Submittal_And_Approval
+																			,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																		)
+																	)
+																)
+															)
+														)	
+													)
+												)
+											)	
+										)
+	,[JTC_TP_2nd_Submittal]				=dateadd(
+											day
+											,@JTC_2nd_Submittal
+											,dbo.trimtime(
+												coalesce(
+													u.tp2ndsubmittal							
+													,dateadd(
+														day
+														,@Electric_Plans_2nd_Submittal
+														,dbo.trimtime(
+															coalesce(
+																u.tp1stsubmittal							
+																,dateadd(
+																	day
+																	,@Electric_Plans_1st_Submittal
+																	,dbo.trimtime(
+																		coalesce(
+																			u.tpks1stsubmittal						
+																			,dateadd(
+																				day
+																				,@Electric_KS_Submittal_And_Approval
+																				,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																			)
+																		)
+																	)
+																)
+															)	
+														)
+													)
+												)	
+											)
+										)
+	,[JTC_TP_Approved]					=dateadd(
+											day
+											,@JTC_Approval
+											,dateadd(
+												day
+												,@JTC_2nd_Submittal
+												,dbo.trimtime(
+													coalesce(
+														u.tp2ndsubmittal							
+														,dateadd(
+															day
+															,@Electric_Plans_2nd_Submittal
+															,dbo.trimtime(
+																coalesce(
+																	u.tp1stsubmittal							
+																	,dateadd(
+																		day
+																		,@Electric_Plans_1st_Submittal
+																		,dbo.trimtime(
+																			coalesce(
+																				u.tpks1stsubmittal						
+																				,dateadd(
+																					day
+																					,@Electric_KS_Submittal_And_Approval
+																					,dbo.trimtime(coalesce(u.TPGlobalsRceived,dbo.trimtime(dateadd(day,@Globals_TP+@Intake_Electric_TP,u.tpintentsubmitted))))	
+																				)
+																			)
+																		)
+																	)
+																)	
+															)
+														)
+													)	
+												)
+											)
+										)
+
+--===================================================
+------------------ACTUALS----------------------------
+--===================================================
+--Intents
+	,[Actual_Intent_NB]						= case when coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub)								is not null then convert(bit,coalesce(u.jtisecondrevision,u.jtifirstrevision,u.jtisub)								) else 0 end
+	,[Actual_Intent_GWRO]					= case when u.Gaswrorelointentsubmitted				is not null then convert(bit,u.Gaswrorelointentsubmitted			) else 0 end
+	,[Actual_Intent_R20]					= case when u.r20intentsubmitted					is not null then convert(bit,u.r20intentsubmitted					) else 0 end
+	,[Actual_Intent_EWRO]					= case when u.WROintentsubmitted					is not null then convert(bit,u.WROintentsubmitted					) else 0 end
+	,[Actual_Intent_ERELO]					= case when u.WROintentsubmitted					is not null then convert(bit,u.WROintentsubmitted					) else 0 end
+	,[Actual_Intent_TP]						= case when u.tpintentsubmitted						is not null then convert(bit,u.tpintentsubmitted					) else 0 end
+
+--Gas Globals
+	,[Actual_Global_Gas_Gas]				=case when u.gasglobals								is not null then convert(bit,u.gasglobals							) else 0 end
+	,[Actual_Global_Gas_WRO]				=case when u.GasWROglobalsreceived					is not null then convert(bit,u.GasWROglobalsreceived				) else 0 end
+	
+--Electric Globals
+	,[Actual_Global_Electric_NB]			=case when u.electricglobals						is not null then convert(bit,u.electricglobals						) else 0 end
+	,[Actual_Global_Electric_R20]			=case when u.r20globalsreceived						is not null then convert(bit,u.r20globalsreceived					) else 0 end
+	,[Actual_Global_Electric_EWRO]			=case when u.WROglobalsreceived						is not null then convert(bit,u.WROglobalsreceived					) else 0 end
+	,[Actual_Global_Electric_ERELO]			=case when u.ElectricReloGlobalsReceived			is not null then convert(bit,u.ElectricReloGlobalsReceived			) else 0 end
+	,[Actual_Global_Electric_TP]			=case when u.TPGlobalsRceived						is not null then convert(bit,u.TPGlobalsRceived						) else 0 end
+--=========
+--Actual Gas Plans
+--=========
+----Gas	
+	,[Actual_Gas_Globals_Received]			=case when u.gasglobals								is not null then convert(bit,u.gasglobals							) else 0 end
+	,[Actual_Gas_1st_Submittal]				=case when u.firstsubgas							is not null then convert(bit,u.firstsubgas							) else 0 end
+	,[Actual_Gas_2nd_Submittal]				=case when u.gassecondsub							is not null then convert(bit,u.gassecondsub							) else 0 end
+	,[Actual_Gas_3rd_Submittal]				=case when u.gasthirdsub							is not null then convert(bit,u.gasthirdsub							) else 0 end
+	,[Actual_Gas_TA]						=case when u.gastentapprvd							is not null then convert(bit,u.gastentapprvd						) else 0 end
+	,[Actual_Gas_Approved]					=case when u.gasapproved							is not null then convert(bit,u.gasapproved							) else 0 end
+	,[Actual_Gas_PGE_Pricing]				=case when u.EstGasNBPricingEndDate					is not null then convert(bit,u.EstGasNBPricingEndDate				) else 0 end
+	,[Actual_Gas_Contracts]					=case when u.gascontractreceived					is not null then convert(bit,u.gascontractreceived					) else 0 end
+----WRO
+	,[Actual_Gas_WRO_Globals_Received]		=case when u.GasWROglobalsreceived					is not null then convert(bit,u.GasWROglobalsreceived				) else 0 end
+	,[Actual_Gas_WRO_1st_Submittal]			=case when u.GasWRO1stsubmittal						is not null then convert(bit,u.GasWRO1stsubmittal					) else 0 end
+	,[Actual_Gas_WRO_2nd_Submittal]			=case when u.GasWRO2ndsubmittal						is not null then convert(bit,u.GasWRO2ndsubmittal					) else 0 end
+	,[Actual_Gas_WRO_3rd_Submittal]			=case when u.GasWRO3rdsubmittal						is not null then convert(bit,u.GasWRO3rdsubmittal					) else 0 end
+	,[Actual_Gas_WRO_TA]					=case when u.Gaswrorelota							is not null then convert(bit,u.Gaswrorelota							) else 0 end
+	,[Actual_Gas_WRO_Approved]				=case when u.gaswroapproved							is not null then convert(bit,u.gaswroapproved						) else 0 end
+	,[Actual_Gas_WRO_PGE_Pricing]			=case when u.EstGasWROPricingEndDate				is not null then convert(bit,u.EstGasWROPricingEndDate				) else 0 end
+	,[Actual_Gas_WRO_Contracts]				=case when u.GasWROContractReceived					is not null then convert(bit,u.GasWROContractReceived				) else 0 end
+--=====================
+--Actual Electric Key 
+--=====================
+----NB/
+	,[Actual_EKS_NB_Globals_Received]		=case when u.electricglobals						is not null then convert(bit,u.electricglobals						) else 0 end
+	,[Actual_EKS_NB_1st_Submittal]			=case when u.kssubmitted							is not null then convert(bit,u.kssubmitted							) else 0 end
+	,[Actual_EKS_NB_2nd_Submittal]			=case when u.kssecondsub							is not null then convert(bit,u.kssecondsub							) else 0 end
+	,[Actual_EKS_NB_3rd_Submittal]			=case when u.ksthirdsub								is not null then convert(bit,u.ksthirdsub							) else 0 end
+	,[Actual_EKS_NB_Approved]				=case when u.ksapproved								is not null then convert(bit,u.ksapproved							) else 0 end
+----E-WRO
+	,[Actual_EKS_R20_Globals_Received]		=case when u.r20globalsreceived						is not null then convert(bit,u.r20globalsreceived					) else 0 end
+	,[Actual_EKS_R20_1st_Submittal]			=case when u.R20KS1stSubmittal						is not null then convert(bit,u.R20KS1stSubmittal					) else 0 end
+	,[Actual_EKS_R20_2nd_Submittal]			=case when u.R20KS2ndSubmittal						is not null then convert(bit,u.R20KS2ndSubmittal					) else 0 end
+	,[Actual_EKS_R20_3rd_Submittal]			=case when u.R20KS3rdSubmittal						is not null then convert(bit,u.R20KS3rdSubmittal					) else 0 end
+	,[Actual_EKS_R20_Approved]				=case when u.R20KSApproved							is not null then convert(bit,u.R20KSApproved						) else 0 end
+	
+----E-Relo
+	,[Actual_EKS_WRO_Relo_Globals_Received]	=case when u.WROglobalsreceived						is not null then convert(bit,u.WROglobalsreceived					) else 0 end
+	,[Actual_EKS_WRO_Relo_1st_Submittal]	=case when u.WROks1stsubmittal						is not null then convert(bit,u.WROks1stsubmittal					) else 0 end
+	,[Actual_EKS_WRO_Relo_2nd_Submittal]	=case when u.WROks2ndsubmittal						is not null then convert(bit,u.WROks2ndsubmittal					) else 0 end
+	,[Actual_EKS_WRO_Relo_3rd_Submittal]	=null--case when u.R20KS3rdSubmittal						is not null then convert(bit,1) else 0 end
+	,[Actual_EKS_WRO_Relo_Approved]			=case when u.WROksapproved							is not null then convert(bit,u.WROksapproved						) else 0 end
+----TP
+	,[Actual_EKS_TP_Globals_Received]		=case when u.TPGlobalsRceived						is not null then convert(bit,u.TPGlobalsRceived						) else 0 end
+	,[Actual_EKS_TP_1st_Submittal]			=case when u.tpks1stsubmittal						is not null then convert(bit,u.tpks1stsubmittal						) else 0 end
+	,[Actual_EKS_TP_2nd_Submittal]			=case when u.tpks2ndsubmittal						is not null then convert(bit,u.tpks2ndsubmittal						) else 0 end
+	,[Actual_EKS_TP_3rd_Submittal]			=case when u.tpks3rdsubmittal						is not null then convert(bit,u.tpks3rdsubmittal						) else 0 end
+	,[Actual_EKS_TP_Approved]				=case when u.tpksapproved							is not null then convert(bit,u.tpksapproved							) else 0 end
+--==============
+--Actual Electric Plans
+--==============
+----NB
+	,[Actual_EP_NB_Globals_Received]		=case when u.electricglobals						is not null then convert(bit,u.electricglobals						) else 0 end
+	,[Actual_EP_NB_1st_Submittal]			=case when u.electricfirstsub						is not null then convert(bit,u.electricfirstsub						) else 0 end
+	,[Actual_EP_NB_2nd_Submittal]			=case when u.electricsecondsub						is not null then convert(bit,u.electricsecondsub					) else 0 end
+	,[Actual_EP_NB_3rd_Submittal]			=case when u.electricthirdsub						is not null then convert(bit,u.electricthirdsub						) else 0 end
+	,[Actual_EP_NB_Approved]				=case when u.electricapproved						is not null then convert(bit,u.electricapproved						) else 0 end
+	,[Actual_EP_NB_PGE_Pricing]				=case when u.EstElectricNBPricingEndDate			is not null then convert(bit,u.EstElectricNBPricingEndDate				) else 0 end
+	,[Actual_EP_NB_Contracts]				=case when u.electriccontractreceived				is not null then convert(bit,u.electriccontractreceived				) else 0 end
+----R20
+	,[Actual_EP_R20_Globals_Received]		=case when u.r20globalsreceived						is not null then convert(bit,u.r20globalsreceived					) else 0 end
+	,[Actual_EP_R20_1st_Submittal]			=case when u.r201stsubmittal						is not null then convert(bit,u.r201stsubmittal						) else 0 end
+	,[Actual_EP_R20_2nd_Submittal]			=case when u.r202ndsubmittal						is not null then convert(bit,u.r202ndsubmittal						) else 0 end
+	,[Actual_EP_R20_3rd_Submittal]			=case when u.r203rdsubmittal						is not null then convert(bit,u.r203rdsubmittal						) else 0 end
+	,[Actual_EP_R20_Approved]				=case when u.R20Approved							is not null then convert(bit,u.R20Approved							) else 0 end
+	,[Actual_EP_R20_PGE_Pricing]			=case when u.EstElectricR20PricingEndDate			is not null then convert(bit,u.EstElectricR20PricingEndDate			) else 0 end
+	,[Actual_EP_R20_Contracts]				=case when u.ElectricRule20ContractReceived			is not null then convert(bit,u.ElectricRule20ContractReceived		) else 0 end
+----WRO
+	,[Actual_EP_WRO_Globals_Received]		=case when u.WROglobalsreceived						is not null then convert(bit,u.WROglobalsreceived					) else 0 end
+	,[Actual_EP_WRO_1st_Submittal]			=case when u.WRO1stsubmittal						is not null then convert(bit,u.WRO1stsubmittal						) else 0 end
+	,[Actual_EP_WRO_2nd_Submittal]			=case when u.WRO2ndsubmittal						is not null then convert(bit,u.WRO2ndsubmittal						) else 0 end
+	,[Actual_EP_WRO_3rd_Submittal]			=case when u.WRO3rdsubmittal						is not null then convert(bit,u.WRO3rdsubmittal						) else 0 end
+	,[Actual_EP_WRO_Approved]				=case when u.WROapproved							is not null then convert(bit,u.WROapproved							) else 0 end
+	,[Actual_EP_WRO_PGE_Pricing]			=case when u.EstElectricWROPricingEndDate			is not null then convert(bit,u.EstElectricWROPricingEndDate			) else 0 end
+	,[Actual_EP_WRO_Contracts]				=case when u.ElectricWROReloContractReceived		is not null then convert(bit,u.ElectricWROReloContractReceived		) else 0 end
+----RELO
+	,[Actual_EP_RELO_Globals_Received]		=case when u.ElectricReloGlobalsReceived			is not null then convert(bit,u.ElectricReloGlobalsReceived			) else 0 end
+	,[Actual_EP_RELO_1st_Submittal]			=case when u.Relo1stSubmittal						is not null then convert(bit,u.Relo1stSubmittal						) else 0 end
+	,[Actual_EP_RELO_2nd_Submittal]			=case when u.Relo2ndSubmittal						is not null then convert(bit,u.Relo2ndSubmittal						) else 0 end
+	,[Actual_EP_RELO_3rd_Submittal]			=case when u.Relo3rdSubmittal						is not null then convert(bit,u.Relo3rdSubmittal						) else 0 end
+	,[Actual_EP_RELO_Approved]				=case when u.ReloApproved							is not null then convert(bit,u.ReloApproved							) else 0 end
+	,[Actual_EP_RELO_PGE_Pricing]			=case when u.EstElectricRELOPricingEndDate			is not null then convert(bit,u.EstElectricRELOPricingEndDate		) else 0 end
+	,[Actual_EP_RELO_Contracts]				=case when u.ElectricRELOContractReceived			is not null then convert(bit,u.ElectricRELOContractReceived			) else 0 end
+----TP
+	,[Actual_EP_TP_Globals_Received]		=case when u.TPGlobalsRceived						is not null then convert(bit,u.TPGlobalsRceived						) else 0 end
+	,[Actual_EP_TP_1st_Submittal]			=case when u.tp1stsubmittal							is not null then convert(bit,u.tp1stsubmittal						) else 0 end
+	,[Actual_EP_TP_2nd_Submittal]			=case when u.tp2ndsubmittal							is not null then convert(bit,u.tp2ndsubmittal						) else 0 end
+	,[Actual_EP_TP_3rd_Submittal]			=case when u.tp3rdsubmittal							is not null then convert(bit,u.tp3rdsubmittal						) else 0 end
+	,[Actual_EP_TP_Approved]				=case when u.tpapproved								is not null then convert(bit,u.tpapproved							) else 0 end
+	,[Actual_EP_TP_PGE_Pricing]				=case when u.EstElectricTPPricingEndDate			is not null then convert(bit,u.EstElectricTPPricingEndDate			) else 0 end
+	,[Actual_EP_TP_Contracts]				=case when u.ElectricTPContractReceived				is not null then convert(bit,u.ElectricTPContractReceived			) else 0 end
+--====
+--JTC
+--====
+----NB/R20
+	,[Actual_JTC_NBR20_1st_Submittal]		=case when u.jtcfirstsub							is not null then convert(bit,u.jtcfirstsub							) else 0 end
+	,[Actual_JTC_NBR20_2nd_Submittal]		=case when u.jtcsecondsub							is not null then convert(bit,u.jtcsecondsub							) else 0 end
+	,[Actual_JTC_NBR20_3rd_Submittal]		=case when u.jtcthirdsub							is not null then convert(bit,u.jtcthirdsub							) else 0 end
+	,[Actual_JTC_NBR20_4th_Submittal]		=case when u.JTC4thsubmittal						is not null then convert(bit,u.JTC4thsubmittal						) else 0 end
+	,[Actual_JTC_NBR20_Approved]			=case when u.jtcapproved							is not null then convert(bit,u.jtcapproved							) else 0 end
+----WRO
+	,[Actual_JTC_TP_1st_Submittal]			=case when u.tp2ndsubmittal							is not null then convert(bit,u.tp2ndsubmittal						) else 0 end
+	,[Actual_JTC_TP_2nd_Submittal]			=null
+	,[Actual_JTC_TP_Approved]				=null
+--====
+--OTHER
+--====
+	,[Actual_BidPackageAvailability]		=case when u.bidpackagetoclient							is not null then convert(bit,u.bidpackagetoclient				) else 0 end
+
+----N/A
+	,[Gas_NA]								=case when u.GasNBAppna								is not null then convert(bit,u.GasNBAppna							) else 0 end
+	,[Gas_WRO_NA]							=case when u.Gasreloappna							is not null then convert(bit,u.Gasreloappna							) else 0 end										  																
+	,[Electric_NB_NA]						=case when u.applicationna							is not null then convert(bit,u.applicationna						) else 0 end
+	,[Electric_R20_NA]						=case when u.ElectricRule20Appna					is not null then convert(bit,u.ElectricRule20Appna					) else 0 end
+	,[Electric_WRO_NA]					    =case when u.ElectricWROAppna						is not null then convert(bit,u.ElectricWROAppna						) else 0 end
+	,[Electric_RELO_NA]					    =case when u.ElectricReloAppna						is not null then convert(bit,u.ElectricReloAppna					) else 0 end
+	,[Electric_TP_NA]						=case when u.ElectricTPAppna						is not null then convert(bit,u.ElectricTPAppna						) else 0 end										 																
+	,[JTC_NA]								=case when u.compositeonnb							is not null then convert(bit,u.compositeonnb						) else 0 end
+	--Intake
+    ,[Assumption_Intake]         		=@Intake_Gas_NB	--Same for all. Choose first one
+	--Globals
+    ,[Assumption_Globals_Gas_NB]        =@Globals_Gas_NB				
+    ,[Assumption_Globals_Gas_WRO]       =@Globals_Gas_WRO
+    ,[Assumption_Globals_Electric_NB]   =@Globals_Electric_NB
+    ,[Assumption_Globals_E_Rule_20]     =@Globals_E_Rule_20
+    ,[Assumption_Globals_E_WRO]         =@Globals_E_WRO
+    ,[Assumption_Globals_E_Relo]        =@Globals_E_Relo
+    ,[Assumption_Globals_TP]            =@Globals_TP
+    --Gas
+    ,[Assumption_Gas_1st_Submittal]             =@Gas_1st_Submittal
+    ,[Assumption_Gas_2nd_Submittal]             =@Gas_2nd_Submittal
+    ,[Assumption_Gas_3rd_Submittal]             =@Gas_3rd_Submittal
+    ,[Assumption_Gas_Approval]                  =@Gas_Approval
+    ,[Assumption_Gas_Contracts_PGE_Pricing]     =@Gas_Contracts_PGE_Pricing
+    ,[Assumption_Gas_Contracts_Prep]            =@Gas_Contracts_Prep
+    --Electric KS
+	,[Assumption_Electric_KS_Submittal_And_Approval]		=@Electric_KS_Submittal_And_Approval
+    --Electric
+    ,[Assumption_Electric_Plans_1st_Submittal]  		=@Electric_Plans_1st_Submittal
+    ,[Assumption_Electric_Plans_2nd_Submittal]  		=@Electric_Plans_2nd_Submittal
+    ,[Assumption_Electric_Plans_3rd_Submittal]  		=@Electric_Plans_3rd_Submittal
+    ,[Assumption_Electric_Plans_Approval]       		=@Electric_Plans_Approval
+    ,[Assumption_Electric_Plans_Contracts]      		=@Electric_Plans_Contracts
+	,[Assumption_Electric_Plans_Contracts_PGE_Pricing]	=@Electric_Plans_Contracts_PGE_Pricing
+    --JTC
+    ,[Assumption_JTC_1st_Submittal]             =@JTC_1st_Submittal
+    ,[Assumption_JTC_2nd_Submittal]             =@JTC_2nd_Submittal
+    ,[Assumption_JTC_Approval]                  =@JTC_Approval
+
+from
+	Projects p
+	left outer join ProjectFacts pf on p.factid=pf.factid
+	left outer join Firms f on pf.firmid=f.firmid
+	left outer join Employees e1 on pf.PMempid=e1.empid
+	left outer join EmployeeUDFS eu on eu.empid=e1.empid
+	left outer join Employees e2 on eu.projectadmin=e2.empid
+	left outer join ProjectUDFs u on u.factid=pf.factid
+--	left outer join #clientPMs c on c.firmid=pf.firmid
+where
+	(
+		(@ProjectIDs is null)
+		or
+		(@ProjectIDs is not null and p.projectid in (select listitem from #projects))
+	)
+	and 
+	(
+		(@ClientIDs is null)
+		or
+		(@ClientIDs is not null and f.firmid in (select listitem from #clients))
+	)
+	and
+	p.isbilltermsnode=1
+	and
+	pf.isactive=1
